@@ -1,17 +1,27 @@
 <!doctype html>
 <html lang="ko">
 <head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-C7MSQE7P08"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-C7MSQE7P08');
+  </script>
+
   <meta charset="utf-8" />
   <title>Monthly Art Vol.2 - Boiling Point: Emerging Artists & Spaces in Seoul</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+
   <!-- PageFlip -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/page-flip/dist/css/page-flip.min.css">
   <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.min.js"></script>
+
   <style>
     :root{
       --bg:#0b0c10; --panel:#151821; --text:#e9eef6; --muted:#9aa3b2; --accent:#46b3ff; --paper-dark:#0e1117;
-      /* JS에서 실제 값으로 덮어씌움: 단면폭/단면높이/스프레드폭 */
-      --page-w:1240px; --page-h:1624px; --book-w:2480px;
+      --page-w:1240px; --page-h:1624px; --book-w:2480px; --content-w:2480px;
     }
     html,body{height:100%;margin:0;background:linear-gradient(180deg,#0d1017,#0b0c10);color:var(--text);font-family:system-ui,"Noto Sans KR",sans-serif}
     .app{display:grid;grid-template-rows:auto 1fr auto;height:100%;gap:10px}
@@ -19,51 +29,68 @@
     .spacer{flex:1}
     .btn{border:1px solid #2a3143;background:#1a1f2c;color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
     .field{display:inline-flex;align-items:center;gap:6px;border:1px solid #2a3143;border-radius:10px;padding:6px 10px;background:#101522}
-    .range{width:160px;accent-color:var(--accent)}
     .hint{color:var(--muted);font-size:13px}
 
-    /* 뷰포트/줌 레이어 */
-    #viewer{position:relative;display:grid;place-items:center;overflow:hidden;touch-action:none;background:transparent;}
+    /* 뷰포트/줌 레이어: 중앙 정렬 제거 → 좌상단 기준으로만 배치(쏠림 방지) */
+    #viewer{
+      position:relative;
+      overflow:hidden;
+      background:transparent;
+      touch-action:none; /* 제스처 직접 처리 */
+    }
     #zoomLayer{
-      position:relative;width:fit-content;height:fit-content;
+      position:absolute; left:0; top:0;
+      width:fit-content; height:fit-content;
       transform-origin:0 0; cursor:grab; user-select:none; background:var(--paper-dark);
+      will-change:transform;
     }
     #zoomLayer.dragging{cursor:grabbing;}
 
-    /* PageFlip 컨테이너: 스프레드(책 전체) 크기로 고정 */
+    /* PageFlip 컨테이너: hover/클릭 완전 차단(플립 애니메이션 잔상 제거) */
     #flip{
-      position:relative; width:var(--book-w); height:var(--page-h);
+      position:relative; width:var(--content-w); height:var(--page-h);
       transition:none; background:var(--paper-dark);
+      pointer-events:none;
     }
-    /* 내부 캔버스 배경도 어둡게 */
-    .stf__canvas, .stf_canvas, #flip canvas { background:var(--paper-dark) !important; }
+    #flip *{ pointer-events:none !important; }
+    .stf__canvas, .stf_canvas, #flip canvas{ background:var(--paper-dark) !important; }
 
     input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
     #status{font-weight:600}
+
+    .titleBox{
+      min-width:0; max-width:clamp(160px, 45vw, 720px);
+      display:flex; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-height:35px;
+    }
+    .titleText{
+      font-weight:700; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      font-size:clamp(12px,1.6vw,16px); line-height:1.1; min-width:0;
+    }
+
+    @media (max-width: 900px){
+      .titleBox, #status, #pageGroup, .spacer { display:none !important; }
+    }
+    @media (max-width: 640px){
+      .toolbar .btn, .toolbar .field { padding: 4px 8px; }
+    }
   </style>
 </head>
 <body>
 <div class="app">
   <div class="toolbar">
-    <div class="field"><span id="bookTitle" style="font-weight:700">Boiling Point: Emerging Artists & Spaces in Korea</span></div>
+    <div class="field titleBox"><span id="bookTitle" class="titleText">Boiling Point: Emerging Artists & Spaces in Korea</span></div>
     <div class="spacer"></div>
     <div id="status" class="hint">Loading…</div>
 
     <button id="prev" class="btn">◀ Prev</button>
-    <div class="field">
+
+    <div id="pageGroup" class="field">
       <span>Page</span>
       <input id="page" type="number" min="1" value="1">
       <span id="total">/ 0</span>
     </div>
+
     <button id="next" class="btn">Next ▶</button>
-
-    <div class="field">
-      <span>Zoom</span>
-      <!-- 25% ~ 400% -->
-      <input id="zoom" class="range" type="range" min="25" max="400" value="100">
-      <span id="zoomLbl">100%</span>
-    </div>
-
     <button id="fs" class="btn" title="전체화면">⛶ Full</button>
   </div>
 
@@ -74,12 +101,13 @@
   </div>
 
   <div class="footer" style="justify-content:space-between">
-    <div class="hint">ⓒ Wolganmisool Publications, Inc. 2025 All Right Reserved.</div>
+    <div class="hint">ⓒ Wolganmisool Publications, Inc. 2025 All Right Reserved. <p><a href="./licenses.html">오픈소스 · 제3자 고지</a></p></div>
     <div class="hint"></div>
   </div>
 </div>
 
 <script>
+  // ====== 기본 세팅 ======
   const DEFAULT_MANIFEST = "./manifest.json";
   const qp = new URLSearchParams(location.search);
   const manifestArg = qp.get("manifest") || DEFAULT_MANIFEST;
@@ -92,134 +120,227 @@
   const nextBtn = document.getElementById('next');
   const pageInput = document.getElementById('page');
   const totalEl = document.getElementById('total');
-  const zoomRange = document.getElementById('zoom');
-  const zoomLbl = document.getElementById('zoomLbl');
   const fsBtn = document.getElementById('fs');
   const statusEl = document.getElementById('status');
 
   let pageFlip = null;
   let currentPages = [];
 
-  // 원본 단면 크기 (픽셀) — 첫 이미지로 자동 감지
+  // 페이지 원본 크기 (첫 이미지로 감지)
   let PAGE_W = 1240, PAGE_H = 1624;
-  let BOOK_W = PAGE_W * 2, BOOK_H = PAGE_H;
+  let BOOK_W = PAGE_W * 2;
+
+  // 반응형: 모바일은 단면, 데스크톱은 스프레드 + showCover
+  const MOBILE_BREAKPOINT = 900;
+  let isSinglePageMode = false;
+  let showCoverDesktop = true; // PC: 표지 단면 → 이후 스프레드
+
+  // 현재 뷰 폭
+  let CONTENT_W = BOOK_W;
 
   // 줌/패닝 상태
   const MIN_SCALE = 0.25, MAX_SCALE = 4.0;
-  let scale = 1, tx = 0, ty = 0;
+  let scale = 1, tx = 0, ty = 0, fitScale = 1;
 
-  function setStatus(msg){ statusEl.textContent = msg; }
-  function naturalSort(a,b){ const c = new Intl.Collator(undefined,{numeric:true,sensitivity:'base'}); return c.compare(a,b); }
-  function toAbs(urlLike, baseHref){ try { return new URL(urlLike, baseHref).href; } catch { return urlLike; } }
+  // 드래그/핀치 상태
+  const pointers = new Map();
+  let isDragging = false, dragLast = {x:0,y:0};
+  let pinchStartScale = 1, pinchStartDist = 0, pinchCenter = {x:0,y:0};
 
+  // 탭 내비 (가장자리 탭만 넘김)
+  const EDGE_TAP_ZONE = 0.22, TAP_MAX_DIST = 8, TAP_MAX_MS = 300;
+  let tapStart = null;
+
+  // ====== 유틸 ======
+  const setStatus = (m)=> statusEl.textContent = m;
+  const naturalSort = (a,b)=> new Intl.Collator(undefined,{numeric:true,sensitivity:'base'}).compare(a,b);
+  const toAbs = (u,b)=> { try { return new URL(u,b).href; } catch { return u; } };
+  const isTextInputFocused = ()=>{
+    const ae = document.activeElement;
+    return !!ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
+  };
   function applyCSSVars(){
     const root = document.documentElement;
-    root.style.setProperty('--page-w', PAGE_W + 'px');
-    root.style.setProperty('--page-h', PAGE_H + 'px');
-    root.style.setProperty('--book-w', BOOK_W + 'px');
+    root.style.setProperty('--page-w', PAGE_W+'px');
+    root.style.setProperty('--page-h', PAGE_H+'px');
+    root.style.setProperty('--book-w', BOOK_W+'px');
+    root.style.setProperty('--content-w', CONTENT_W+'px');
   }
-
   function getImageSize(url){
-    return new Promise((resolve, reject)=>{
-      const img = new Image();
-      img.onload = ()=>resolve({ w: img.naturalWidth, h: img.naturalHeight });
-      img.onerror = reject;
-      // CORS가 있으면 서버에서 이미지에 Access-Control-Allow-Origin 설정 필요
-      img.src = url;
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.onload=()=>resolve({w:img.naturalWidth,h:img.naturalHeight});
+      img.onerror=()=>reject(new Error('이미지 로드 실패: '+url));
+      img.src=url;
     });
   }
 
-  function initFlip(imageURLs){
+  // 앞/뒤표지는 단면 처리되도록 현재 폭 계산 (PC)
+  function computeContentWidth(){
+    if (isSinglePageMode) return PAGE_W; // 모바일: 항상 단면
+    if (pageFlip){
+      const idx = pageFlip.getCurrentPageIndex();
+      const last = pageFlip.getPageCount() - 1;
+      if (idx === 0 || idx === last) return PAGE_W; // 표지/뒷표지 = 단면
+    }
+    return BOOK_W;
+  }
+
+  function computeFitScale(){
+    const vw = viewer.clientWidth, vh = viewer.clientHeight;
+    const w = CONTENT_W, h = PAGE_H;
+    let s = Math.min(vh / h, 1);
+    if (w * s > vw) s = Math.min(vw / w, s);
+    return Math.max(MIN_SCALE, s);
+  }
+
+  function clampPan(){
+    const vw = viewer.clientWidth, vh = viewer.clientHeight;
+    const cw = CONTENT_W * scale, ch = PAGE_H * scale;
+    if (cw <= vw) tx = (vw - cw)/2; else tx = Math.min(0, Math.max(tx, vw - cw));
+    if (ch <= vh) ty = (vh - ch)/2; else ty = Math.min(0, Math.max(ty, vh - ch));
+  }
+
+  function applyTransform(){
+    zoomLayer.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
+  }
+
+  function setScale(newScale, cx, cy){
+    const rect = viewer.getBoundingClientRect();
+    const x = (cx !== undefined) ? cx - rect.left : rect.width/2;
+    const y = (cy !== undefined) ? cy - rect.top  : rect.height/2;
+
+    const prev = scale;
+    const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+
+    const px = (x - tx) / prev;
+    const py = (y - ty) / prev;
+
+    scale = next;
+    tx = x - px * scale;
+    ty = y - py * scale;
+
+    clampPan();
+    applyTransform();
+  }
+
+  function fitToScreen(keepZoom=false){
+    CONTENT_W = computeContentWidth();
+    applyCSSVars();
+    const newFit = computeFitScale();
+    if (!keepZoom || scale <= fitScale + 0.001) {
+      scale = newFit;
+      const vw = viewer.clientWidth, vh = viewer.clientHeight;
+      tx = (vw - CONTENT_W * scale) / 2;
+      ty = (vh - PAGE_H     * scale) / 2;
+      applyTransform();
+    } else {
+      clampPan();
+      applyTransform();
+    }
+    fitScale = newFit;
+  }
+
+  // ====== PageFlip ======
+  function initFlip(imageURLs, forcePortrait){
     flipRoot.innerHTML = '';
     if (pageFlip){ pageFlip.destroy(); pageFlip = null; }
+
+    isSinglePageMode = !!forcePortrait;
+    const usePortrait = isSinglePageMode;
+
     pageFlip = new St.PageFlip(flipRoot, {
-      // 단면 기준 원본 픽셀 해상도로 고정 — stretch 금지
-      width: PAGE_W,
-      height: PAGE_H,
+      width: PAGE_W, height: PAGE_H,
       size: "fixed",
-      minWidth: PAGE_W, maxWidth: PAGE_W,   // 컨테이너가 늘어나며 흐트러지는 걸 방지
+      minWidth: PAGE_W, maxWidth: PAGE_W,
       minHeight: PAGE_H, maxHeight: PAGE_H,
-      usePortrait: false,                   // 스프레드 고정
-      showCover: true,
-      maxShadowOpacity: .2,
-      mobileScrollSupport: true,
-      disableFlipByClick: false
+      usePortrait,
+      showCover: !usePortrait && true, // PC에서 표지는 단면
+      maxShadowOpacity: .0,            // 시각적 잔상 최소화
+      flippingTime: 0,                 // 애니메이션 제거
+      mobileScrollSupport: false,
+      disableFlipByClick: true
     });
     pageFlip.loadFromImages(imageURLs);
 
     totalEl.textContent = `/ ${imageURLs.length}`;
     pageInput.min = 1; pageInput.max = imageURLs.length; pageInput.value = 1;
-    pageFlip.on('flip', e => { pageInput.value = e.data + 1; });
+
+    // 초기 렌더 이후 정확한 중앙맞춤 (커버 쏠림 방지)
+    requestAnimationFrame(()=> requestAnimationFrame(()=> fitToScreen(false)));
+
+    // 페이지 바뀔 때마다 폭 재산정(표지/뒷표지 ↔ 스프레드)
+    pageFlip.on('flip', e => {
+      pageInput.value = e.data + 1;
+      fitToScreen(true);
+    });
   }
 
+  // === 안전한 페이지 이동 (모바일 단면에서도 확실히 동작) ===
+  function goPrev(){
+    if(!pageFlip) return;
+    const idx = pageFlip.getCurrentPageIndex();
+    if (idx > 0) pageFlip.flip(idx - 1);
+  }
+  function goNext(){
+    if(!pageFlip) return;
+    const idx = pageFlip.getCurrentPageIndex();
+    const last = pageFlip.getPageCount() - 1;
+    if (idx < last) pageFlip.flip(idx + 1);
+  }
+
+  // ====== manifest ======
   async function fetchManifest(url){
     setStatus(`Fetching manifest: ${url}`);
-    const res = await fetch(url, { cache: 'no-store' });
-    if(!res.ok){ const msg = `HTTP ${res.status} ${res.statusText} (manifest)\nURL: ${res.url}`; setStatus(msg); throw new Error(msg); }
-    try { return await res.json(); } catch(e){ setStatus('manifest JSON 파싱 실패'); throw e; }
+    const res = await fetch(url, { cache:'no-store' });
+    if(!res.ok){
+      const msg = `HTTP ${res.status} ${res.statusText} (manifest)\nURL: ${res.url}`;
+      setStatus(msg); throw new Error(msg);
+    }
+    try { return await res.json(); }
+    catch(e){ setStatus('manifest JSON 파싱 실패'); throw e; }
   }
-  function normalizeManifest(manifest, manifestUrl){
+  function normalizeManifest(manifest, base){
     if (Array.isArray(manifest)) {
-      const pages = [...manifest].sort(naturalSort).map(p => toAbs(p, manifestUrl));
-      return { title: 'Monthly Art – Flipbook', pages };
+      const pages = [...manifest].sort(naturalSort).map(p => toAbs(p, base));
+      return { title:'Monthly Art – Flipbook', pages };
     }
     if (manifest && Array.isArray(manifest.pages)) {
-      const base = manifest.base ? toAbs(manifest.base, manifestUrl) : manifestUrl;
-      const pages = manifest.pages.map(p => toAbs(p, base)).sort(naturalSort);
+      const b = manifest.base ? toAbs(manifest.base, base) : base;
+      const pages = manifest.pages.map(p => toAbs(p, b)).sort(naturalSort);
       return { title: manifest.title || 'Monthly Art – Flipbook', pages };
     }
     throw new Error('지원하지 않는 manifest 형식입니다.');
   }
 
-  // ===== Zoom / Pan =====
-  function applyTransform(){
-    zoomLayer.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
-    zoomRange.value = Math.round(scale * 100);
-    zoomLbl.textContent = `${Math.round(scale * 100)}%`;
+  // ====== 반응형 모드 전환 ======
+  function isMobileNarrow(){ return window.matchMedia(`(max-width:${MOBILE_BREAKPOINT}px)`).matches; }
+  function applyModeInit(){
+    const single = isMobileNarrow();
+    initFlip(currentPages, single);
+    // 렌더 완료 프레임 뒤에 fit 적용
+    requestAnimationFrame(()=> requestAnimationFrame(()=> fitToScreen(false)));
+    setStatus('Ready');
   }
-  function centerWithinViewport(){
-    const vw = viewer.clientWidth, vh = viewer.clientHeight;
-    const scaledW = BOOK_W * scale;
-    const scaledH = BOOK_H * scale;
-    if (scaledW <= vw) tx = (vw - scaledW) / 2; else tx = Math.min(0, Math.max(tx, vw - scaledW));
-    if (scaledH <= vh) ty = (vh - scaledH) / 2; else ty = Math.min(0, Math.max(ty, vh - scaledH));
-  }
-  function setScale(newScale, fx, fy){
-    const rect = viewer.getBoundingClientRect();
-    const cx = (fx !== undefined) ? fx : rect.width/2;
-    const cy = (fy !== undefined) ? fy : rect.height/2;
-
-    const prev = scale;
-    const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
-
-    const px = (cx - tx) / prev;
-    const py = (cy - ty) / prev;
-
-    scale = next;
-    tx = cx - px * scale;
-    ty = cy - py * scale;
-
-    centerWithinViewport();
-    applyTransform();
-  }
-  function fitToViewportOr100(){
-    const vw = viewer.clientWidth, vh = viewer.clientHeight;
-    const fit = Math.min(vw / BOOK_W, vh / BOOK_H);
-    // 보기 시작 시 화면보다 크면 '맞춤'으로 시작, 아니면 100%
-    const startScale = Math.max(MIN_SCALE, Math.min(1, fit));
-    setScale(startScale);
+  function applyModeOnResize(){
+    const nextSingle = isMobileNarrow();
+    const keepIndex = pageFlip ? pageFlip.getCurrentPageIndex() : 0;
+    if (!!nextSingle !== !!isSinglePageMode){
+      initFlip(currentPages, nextSingle);
+      pageFlip.flip(keepIndex);
+      requestAnimationFrame(()=> requestAnimationFrame(()=> fitToScreen(false)));
+    } else {
+      fitToScreen(true);
+    }
   }
 
-  // 컨트롤
-  prevBtn.addEventListener('click', ()=>pageFlip?.flipPrev());
-  nextBtn.addEventListener('click', ()=>pageFlip?.flipNext());
+  // ====== 컨트롤 ======
+  prevBtn.addEventListener('click', goPrev);
+  nextBtn.addEventListener('click', goNext);
   pageInput.addEventListener('change', ()=>{
     if(!pageFlip) return;
     const n = Math.max(1, Math.min(parseInt(pageInput.value||'1',10), pageFlip.getPageCount()));
     pageFlip.flip(n-1); pageInput.value = n;
-  });
-  zoomRange.addEventListener('input', ()=>{
-    setScale(parseInt(zoomRange.value,10)/100);
   });
   fsBtn.addEventListener('click', ()=>{
     const el = viewer;
@@ -230,70 +351,120 @@
     }
   });
 
-  // 휠 줌
+  // ====== 줌 (휠) : viewer에서 처리 ======
   viewer.addEventListener('wheel', (e)=>{
     e.preventDefault();
-    const rect = viewer.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const factor = (e.deltaY < 0) ? 1.12 : 0.89;
-    setScale(scale * factor, x, y);
-  }, { passive:false });
+    const dy = (e.deltaMode === 1) ? e.deltaY * 16 : e.deltaY;
+    const factor = Math.exp(-dy / 300);
+    const target = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
+    setScale(target, e.clientX, e.clientY);
+    // fit 이하로 내려가면 정확히 화면맞춤으로 스냅
+    if (scale <= fitScale + 1e-4) fitToScreen(false);
+  }, { passive:false, capture:true });
 
-  // 패닝 + 핀치
-  const pointers = new Map();
-  let isDragging = false, dragLast = {x:0,y:0};
-  let pinchStartDist = 0, pinchStartScale = 1, pinchPrevCenter = {x:0,y:0};
-
-  function distance(a,b){ return Math.hypot(a.x-a.x + (b.x-a.x), a.y-a.y + (b.y-a.y)); } // safe inline
+  // ====== 핀치/드래그 : zoomLayer 에서 처리 ======
   function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
   function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
+  const GT_FIT = ()=> scale > (fitScale + 0.001);
 
-  viewer.addEventListener('pointerdown', (e)=>{
-    if (scale > 1) e.stopPropagation();
-    viewer.setPointerCapture(e.pointerId);
+  zoomLayer.addEventListener('pointerdown', (e)=>{
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    zoomLayer.setPointerCapture(e.pointerId);
+
     const r = viewer.getBoundingClientRect();
-    pointers.set(e.pointerId, { x:e.clientX - r.left, y:e.clientY - r.top });
+    const p = { x:e.clientX - r.left, y:e.clientY - r.top };
+    pointers.set(e.pointerId, p);
 
-    if (pointers.size === 1 && scale > 1){
-      isDragging = true; zoomLayer.classList.add('dragging'); dragLast = pointers.get(e.pointerId);
+    tapStart = { x:e.clientX, y:e.clientY, t:performance.now() };
+
+    if (pointers.size === 1 && GT_FIT()){
+      isDragging = true; zoomLayer.classList.add('dragging'); dragLast = p;
     } else if (pointers.size === 2){
-      const [p1,p2] = [...pointers.values()];
-      pinchStartDist = dist(p1,p2); pinchStartScale = scale; pinchPrevCenter = mid(p1,p2);
+      const [a,b] = [...pointers.values()];
+      pinchStartDist = Math.max(1, dist(a,b));
+      pinchStartScale = scale;
+      pinchCenter = mid(a,b);
     }
-  });
-  viewer.addEventListener('pointermove', (e)=>{
+  }, { passive:false });
+
+  zoomLayer.addEventListener('pointermove', (e)=>{
     if (!pointers.has(e.pointerId)) return;
+    e.preventDefault(); e.stopPropagation();
+
     const r = viewer.getBoundingClientRect();
-    pointers.set(e.pointerId, { x:e.clientX - r.left, y:e.clientY - r.top });
+    const cur = { x:e.clientX - r.left, y:e.clientY - r.top };
+    pointers.set(e.pointerId, cur);
 
     if (pointers.size === 2){
       const [a,b] = [...pointers.values()];
       const d = Math.max(1, dist(a,b));
       const c = mid(a,b);
-      const target = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinchStartScale * (d / pinchStartDist)));
-      setScale(target, c.x, c.y);
-      tx += (c.x - pinchPrevCenter.x); ty += (c.y - pinchPrevCenter.y);
-      centerWithinViewport(); applyTransform();
-      pinchPrevCenter = c; e.stopPropagation();
-    } else if (isDragging && scale > 1){
-      const cur = pointers.get(e.pointerId);
-      tx += (cur.x - dragLast.x); ty += (cur.y - dragLast.y);
-      dragLast = cur; centerWithinViewport(); applyTransform(); e.stopPropagation();
+      const target = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale * (d / pinchStartDist)));
+      setScale(target, c.x + r.left, c.y + r.top);
+      tx += (c.x - pinchCenter.x);
+      ty += (c.y - pinchCenter.y);
+      clampPan(); applyTransform();
+      pinchCenter = c;
+    } else if (isDragging && GT_FIT()){
+      tx += (cur.x - dragLast.x);
+      ty += (cur.y - dragLast.y);
+      dragLast = cur;
+      clampPan(); applyTransform();
+    } else if (!isDragging && pointers.size === 1 && GT_FIT()){
+      isDragging = true; zoomLayer.classList.add('dragging'); dragLast = cur;
     }
-  });
+  }, { passive:false });
+
   function endPointer(e){
     if (pointers.has(e.pointerId)) pointers.delete(e.pointerId);
-    if (pointers.size < 2) pinchStartDist = 0;
+    e.preventDefault(); e.stopPropagation();
+
+    // 탭 내비: 확대가 아닐 때만 (가장자리 영역)
+    if (tapStart){
+      const moved = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y);
+      const dt = performance.now() - tapStart.t;
+      if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS && !GT_FIT()){
+        const r = flipRoot.getBoundingClientRect();
+        if (e.clientY >= r.top && e.clientY <= r.bottom){
+          const xr = (e.clientX - r.left) / r.width;
+          if (xr <= EDGE_TAP_ZONE) goPrev();
+          else if (xr >= 1-EDGE_TAP_ZONE) goNext();
+        }
+      }
+      tapStart = null;
+    }
+
     if (pointers.size === 0){ isDragging = false; zoomLayer.classList.remove('dragging'); }
+    if (pointers.size < 2) pinchStartDist = 0;
+
+    if (scale <= fitScale + 1e-4) fitToScreen(false);
   }
-  viewer.addEventListener('pointerup', endPointer);
-  viewer.addEventListener('pointercancel', endPointer);
-  viewer.addEventListener('pointerleave', endPointer);
+  zoomLayer.addEventListener('pointerup', endPointer, { passive:false });
+  zoomLayer.addEventListener('pointercancel', endPointer, { passive:false });
+  zoomLayer.addEventListener('pointerleave', endPointer, { passive:false });
 
-  window.addEventListener('resize', ()=>{ centerWithinViewport(); applyTransform(); });
+  // ====== 키보드 ======
+  const PAN_STEP_PX = 120;
+  window.addEventListener('keydown', (e)=>{
+    if (isTextInputFocused()) return;
+    const k = e.key;
+    if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(k)) return;
+    e.preventDefault();
+    if (GT_FIT()){
+      const step = PAN_STEP_PX / scale;
+      if (k === 'ArrowLeft')  tx += step;
+      if (k === 'ArrowRight') tx -= step;
+      if (k === 'ArrowUp')    ty += step;
+      if (k === 'ArrowDown')  ty -= step;
+      clampPan(); applyTransform();
+      return;
+    }
+    if (k === 'ArrowLeft')  goPrev();
+    if (k === 'ArrowRight') goNext();
+  });
 
-  // 초기 로드
+  // ====== 초기 로드 ======
   (async ()=>{
     try{
       const absManifestUrl = toAbs(manifestArg, location.href);
@@ -304,16 +475,13 @@
       currentPages = normalized.pages;
       if (!currentPages.length){ setStatus('manifest에 페이지가 없습니다.'); return; }
 
-      // 1) 첫 이미지 해상도를 기준으로 단면 크기 결정 → 스프레드 크기 계산
       const dim = await getImageSize(currentPages[0]);
-      PAGE_W = dim.w; PAGE_H = dim.h; BOOK_W = PAGE_W * 2; BOOK_H = PAGE_H;
-      applyCSSVars(); // CSS에 반영 (#flip 폭/높이 갱신)
+      PAGE_W = dim.w; PAGE_H = dim.h; BOOK_W = PAGE_W * 2;
+      applyCSSVars();
 
-      // 2) PageFlip을 원본 픽셀로 고정 생성(해상도 저하 방지)
-      initFlip(currentPages);
-
-      // 3) 가운데 정렬 및 초기 배율(화면에 맞춤 또는 100%)
-      fitToViewportOr100();
+      initFlip(currentPages, isMobileNarrow());
+      // 초기 두 프레임 뒤에 fit → 첫 페이지가 정확히 화면 중앙/정배율
+      requestAnimationFrame(()=> requestAnimationFrame(()=> fitToScreen(false)));
 
       setStatus('Ready');
     }catch(e){
@@ -324,6 +492,15 @@
 
   // 우클릭 방지
   document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, { capture:true });
+
+  // 리사이즈 대응
+  let _resizeTimer=null;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(applyModeOnResize, 80);
+  });
+  const ro = new ResizeObserver(()=> fitToScreen(true));
+  ro.observe(viewer);
 </script>
 </body>
 </html>
